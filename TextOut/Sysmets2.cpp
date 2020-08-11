@@ -33,7 +33,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPreInstance, PSTR szCmdLine, 
 	ShowWindow(hwnd, nShowCmd);
 	UpdateWindow(hwnd);
 
-	while (GetMessage(&msg, hwnd, 0, 0)) {
+	while (GetMessage(&msg, NULL, 0, 0)) {
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
@@ -46,6 +46,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 	static int cxClient, cyClient, iVscrollPos;
 	HDC hdc;
 	int i;
+	static int iVscrollMax; // 一定要设置成static
 	PAINTSTRUCT ps;
 	TCHAR szBuffer[12];
 	TEXTMETRIC tm;
@@ -59,6 +60,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 		cxCaps = (tm.tmPitchAndFamily & 1 ? 3 : 2) * cxChar / 2;
 
 		ReleaseDC(hwnd, hdc);
+
+		//iVscrollMax = max(0, NUMLINES - cyClient / cyChar);
+		//SetScrollRange(hwnd, SB_VERT, 0, iVscrollMax, TRUE);
 
 		SetScrollRange(hwnd, SB_VERT, 0, NUMLINES - 1, FALSE);
 		SetScrollPos(hwnd, SB_VERT, iVscrollPos, TRUE);
@@ -82,10 +86,18 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_SIZE:
 		cxClient = LOWORD(lParam);
 		cyClient = HIWORD(lParam);
+		iVscrollMax = max(0, NUMLINES - cyClient / cyChar);
+		SetScrollRange(hwnd, SB_VERT, 0, iVscrollMax, TRUE);
 		return 0;
 	case WM_VSCROLL:
 		switch (LOWORD(wParam))
 		{
+		case SB_TOP:
+			iVscrollPos = 0;
+			break;
+		case SB_BOTTOM:
+			iVscrollPos = NUMLINES - 1;
+			break;
 		case SB_LINEUP:
 			iVscrollPos -= 1;
 			break;
@@ -104,10 +116,33 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 		default:
 			break;
 		}
-		iVscrollPos = max(0, min(iVscrollPos, NUMLINES - 1));
+		iVscrollPos = max(0, min(iVscrollPos, iVscrollMax));
 		if (iVscrollPos != GetScrollPos(hwnd, SB_VERT)) {
 			SetScrollPos(hwnd, SB_VERT, iVscrollPos, TRUE);
 			InvalidateRect(hwnd, NULL, TRUE);
+		}
+		return 0;
+
+	case WM_KEYDOWN:
+		switch (wParam) {
+		case VK_HOME:
+			SendMessage(hwnd, WM_VSCROLL, SB_TOP, 0);
+			break;
+		case VK_END:
+			SendMessage(hwnd, WM_VSCROLL, SB_BOTTOM, 0);
+			break;
+		case VK_PRIOR:
+			SendMessage(hwnd, WM_VSCROLL, SB_PAGEUP, 0);
+			break;
+		case VK_NEXT:
+			SendMessage(hwnd, WM_VSCROLL, SB_PAGEDOWN, 0);
+			break;
+		case VK_UP:
+			SendMessage(hwnd, WM_VSCROLL, SB_LINEUP, 0);
+			break;
+		case VK_DOWN:
+			SendMessage(hwnd, WM_VSCROLL, SB_LINEDOWN, 0);
+			break;
 		}
 		return 0;
 	case WM_DESTROY:
